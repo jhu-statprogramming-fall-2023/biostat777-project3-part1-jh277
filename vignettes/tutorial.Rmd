@@ -1,0 +1,132 @@
+---
+title: "package.final Tutorial"
+author: "Jiaxin Huang & Hanmo Li"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{package.final Tutorial}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+
+The **package.final** package is build to provide a suite of useful tools to help with statistical inference and prediction. This package includes functions that perform hypothesis testing, linear regression, and k-nearest neighbor cross-validation test. Below is a concise guide of what the package can do for you. 
+
+## Data
+
+```{r setup}
+library(package.final)
+library(kableExtra)
+```
+
+Before diving into the technical part of this tour, let's first look at the **my_penguins** dataset will be using throughout the entire guide. 
+
+```{r load in data}
+head(my_penguins)
+```
+
+We can see that there are NAs in the my_penguins dataset. To properly use the package for all variables, we need to first clean the dataset using *na.omit()*:
+
+```{r clean data}
+peng_clean <- na.omit(my_penguins)
+peng_clean
+```
+
+Remember, we should **always** use **clean** data in order to properly use this package. For the rest of the guide, we will be using **peng_clean**, a clean version of *my_penguins* dataset. 
+
+## Hypothesis testing & my_t.test
+
+**my_t.test** function performs a one sample t-test on vectors of data. 
+
+After having a grasp of the dataset, let's start analyzing the data by answering the question "Is the population mean of bill length greater than 40." 
+
+**my_t.test** function comes in use. In this case, the null hypothesis is that the true population mean of bill length is equal to 40 ($H_0 : {\mu} = 40$), while the alternative hypothesis is that the true population mean of bill length is greater than 40 ($H_1 : {\mu} > 40$). 
+
+Run the t-test using **my_t.test** function:
+
+```{r my_t.test}
+my_t.test(x = peng_clean$bill_length_mm, alternative = "greater", mu = 40)
+```
+
+The p-value is 4.869297e-33, which is saying that assuming the population mean of bill length is equal to 40, the probability of observing a test statistics at least as extreme as the one in our data is 4.869297e-33. The p-value is much smaller than the alpha value 0.05. Thus, we should reject the null hypothesis, and conclude that the mean bill length is indeed greater than 40.
+
+## Linear Regression & my_lm
+
+**my_lm** function fits a linear regression model to given data and helps us to assess the relationship between variables. 
+
+Let's look at the relationship between *body_mass_g*, *bill_length_mm*, and *bill_depth_mm* from the **peng_clean** data. Using *body_mass_g* as dependent variable, *bill_length_mm* and *bill_depth_mm* as independent variables, run **my_lm**:
+
+```{r my_lm}
+my_lm(body_mass_g ~ bill_length_mm + bill_depth_mm, peng_clean)
+```
+
+Let's first look at the coefficients. 
+
+The coefficient of bill length is 74.81, which indicates the expected increase in body mass is 74.81 grams for every millimeter increase in bill length, holding all other covariates identical. This coefficient is positive, so we can say that body mass and bill length are positively correlated. 
+
+The coefficient of bill depth is -145.51, which indicates the expected change in body mass is -145.51 grams for every millimeter increase in bill depth, holding all other covariates identical. This coefficient is negative, so we can say that body mass and bill depth are negatively correlated. 
+
+Now, let's look at the p-values. For each coefficient, the null hypothesis being tested is: $H_0: {\beta} = 0$. 
+
+We test the null hypothesis that there is no statistically significant relationship between body mass and bill length. The p-value is 0, which is less than ${\alpha} = 0.05$. Thus, we reject the null hypothesis, and conclude that body mass and bill length are correlated.
+
+We also test the null hypothesis that there is no significant relationship between body mass and bill depth. Using ${\alpha} = 0.05$, we can see that the p-value is less than this cut-off level, thus we should reject the null hypothesis, and conclude that body mass and bill depth are correlated.
+
+## K-nearest neighbor model & my_knn_cv
+
+**my_knn_cv** function performs k-nearest neighbors cross-validation test to predict class using given covariates. 
+
+Let's recall our dataset:
+
+```{r view data}
+head(peng_clean)
+```
+
+We want to predict **species** using covariates **bill_length_mm**, **bill_depth_mm**, **fliper_length_mm**, and **body_mass_g** from training data **peng_clean**.
+
+Let's run **my_knn_cv** using **k_nn = 2**, **k_cv = 5**:
+
+```{r my_knn_cv}
+my_result <- my_knn_cv(peng_clean[, 3:6], peng_clean$species, k_nn = 2, k_cv = 5)
+my_result
+```
+
+From the result, we can see a list of *species* and a number indicating CV(cross-validation) misclassification error. 
+
+We can also use the result obtained from **my_knn_cv** function to calculate training misclassification rate:
+
+```{r training error}
+mean((my_result[[1]] != peng_clean$species)^2)
+```
+
+Now, we know how to use the function. Next, let's find out how does the number of neighbors affects the training misclassification rate and CV misclassification rate under 5-fold cross validation?" 
+
+We look at the misclassification rates for **k_nn = 1-10** under 5-fold cross validation **k_cv = 5**. Let's run **my_knn_cv** in a for-loop:
+
+```{r cv_error and training_error}
+cv_errs <- rep(NA, 10)
+training_errs <- rep(NA, 10)
+
+for (i in seq(1,10)) {
+  results <- my_knn_cv(peng_clean[, 3:6], peng_clean$species, k_nn = i, k_cv = 5)
+  cv_errs[i] <- results[[2]]
+  training_errs[i] <- sum(peng_clean$species != results[[1]]) / nrow(peng_clean)
+}
+
+k_nn <- seq(1,10)
+df_table <- data.frame(k_nn, training_errs, cv_errs)
+
+kable(df_table)
+```
+
+What are some observations from the table we obtained? When k_nn = 1, the model has the lowest training misclassification rate and CV misclassification rate using 5-fold cross validation. I would choose this model if our criteria is solely based on training misclassification rates or CV misclassification rates. 
+
+However, it is very likely that we will end up with relatively high testing error because the model (k_nn = 1) tends to overfit the training data set. Thus, in practice, I would prefer models with k_nn ranging from 5 to 10 because they add more flexibility when fitting data, while maintaining relatively low error rates.
+
+

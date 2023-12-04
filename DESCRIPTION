@@ -1,0 +1,25 @@
+Package: package.final
+Title: Jiaxin Huang and Hanmo Li's final project for stat 302
+Version: 0.0.0.9000
+Authors@R: 
+    c(person("Jiaxin", "Huang", email = "jiaxinhuang75@gmail.com", role = c("aut", "cre")),
+      person("Hanmo", "Li", role = "ctb"))
+Description: Project 3 for STAT 302. The package includes complete documentation 
+  and detailed vignette with examples for t-test, linear regression, 
+  and k-nearest neighbors cross-validation functions.
+License: GPL (>= 3)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.0
+Imports: tibble,
+         class,
+         dplyr,
+         knitr,
+         kableExtra,
+         tidyselect
+Suggests: 
+    rmarkdown
+Depends: 
+    R (>= 2.10)
+LazyData: true
+VignetteBuilder: knitr
