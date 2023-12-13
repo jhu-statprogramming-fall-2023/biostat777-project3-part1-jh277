@@ -1,8 +1,9 @@
 ---
-title: "Example_analysis"
+title: "Example analysis"
+author: "Jiaxin Huang"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Example_analysis}
+  %\VignetteIndexEntry{package.final Tutorial}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -16,4 +17,136 @@ knitr::opts_chunk$set(
 
 ```{r setup}
 library(package.final)
+library(here)
+library(kableExtra)
+library(tidyverse)
+library(tidytuesdayR)
+library(ggplot2)
 ```
+
+#### Research question
+
+In the section below, I'd like to use functions in this R package to explore the penguins data: What are the distributions of certain biological factors of penguins and how are they related to each other?. Specifically, I'd like to answer the following three questions:
+
+1\. What are the distributions of the biological factors (bill length, bill depth, flipper_length_mm, body_mass_g) of penguins respectively?
+
+2\. Now zoom in to only one factor: what is the distribution of bill length (by species and by sex)? Is the mean significantly greater than 40 in year 2007?
+
+3\. What is the relationship between bill length and body mass?
+
+#### Load data-set
+
+The data-set I will be using come from [TidyTuesday_Palmerpenguins](https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-07-28/penguins.csv)
+
+If you want to find out what the column names represent, here is the link to the data dictionary: <https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-28/readme.md>
+
+```{r load data}
+if(!dir.exists(here("data"))){
+  dir.create(here("data"))
+}
+rda_files <- c("my_penguins.rda")
+if (any(!file.exists(here("data", rda_files)))){
+  tuition_cost <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-07-28/penguins.csv", show_col_types = FALSE)
+  save(my_penguins, file = here("data", "my_penguins.rda"))
+}
+load(here("data", "my_penguins.rda"))
+```
+
+#### Research Question 1
+
+```{r question 1, fig.dim = c(8, 6)}
+peng_clean <- na.omit(my_penguins)
+head(peng_clean)
+# select numeric factors
+peng_sorted <- peng_clean %>% select(bill_length_mm, bill_depth_mm, flipper_length_mm, body_mass_g)
+map_dbl(.x = peng_sorted, .f = mean, na.rm = TRUE)
+# plot distribution of each factor
+peng_plot <- function(factor) {
+  ggplot(data = peng_clean, aes(x = factor)) +
+    geom_histogram(colour = 4, fill = "white") +
+    labs(title = "Distribution of biological factors of penguins",
+         subtitle = "The following histogram shows the distribution of one of the biological factor of penguins",
+         x = "biological factor", y = "count",
+         caption = "Jiaxin Huang") +
+         theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+               plot.subtitle=element_text(size = 10))
+}
+map(.x = peng_sorted, .f = peng_plot)
+```
+
+#### Research Question 2
+
+```{r question 2, fig.dim = c(8, 6)}
+peng_clean %>%
+  select(species, bill_length_mm) %>%
+  group_by(species) %>%
+  summarize(mean_length = mean(bill_length_mm)) %>%
+  arrange(mean_length)
+bill_length_plot <- peng_clean %>%
+  ggplot(aes(x = bill_length_mm)) + 
+  geom_density(mapping = aes(fill = sex), alpha = 0.4) +
+  facet_wrap(~species) +
+  labs(title = "Distribution of bill length(mm) by species and sex", 
+       subtitle = "Adelie has the shortest bill length and Chinstrap and Gentoo have longer bill length.\nMales tend to have longer bill length than females.",
+       x = "Bill Length(mm)", y = "Density",
+       caption = "Jiaxin Huang") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle=element_text(size = 10),
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+bill_length_plot
+```
+
+After having a grasp of the dataset, let's start analyzing the data by answering the question "Is the population mean of bill length greater than 40 in 2007."
+
+**my_t.test** function comes in use. In this case, the null hypothesis is that the true population mean of bill length is equal to 40 ($H_0 : {\mu} = 40$), while the alternative hypothesis is that the true population mean of bill length is greater than 40 ($H_1 : {\mu} > 40$).
+
+Run the t-test using **my_t.test** function:
+
+```{r my_t.test}
+peng_2007 <- peng_clean %>%
+  filter(year == 2007)
+my_t.test(x = peng_2007$bill_length_mm, alternative = "greater", mu = 40)
+```
+
+The p-value is 6.902624e-12, which is much smaller than the alpha value of 0.05. Thus, we should reject the null hypothesis, and conclude that the mean bill length is indeed greater than 40 in 2007.
+
+#### Research Question 3
+
+**my_lm** function fits a linear regression model to given data and helps us to assess the relationship between variables.
+
+Let's look at the relationship between *body_mass_g* and *bill_length_mm*. Using *body_mass_g* as dependent variable, *bill_length_mm* as independent variables, run **my_lm**:
+
+```{r my_lm}
+my_lm(body_mass_g ~ bill_length_mm, peng_clean)
+```
+
+The coefficient of bill length is 86.79, which indicates the expected increase in body mass is 86.79 grams for every millimeter increase in bill length, holding all other covariates identical.
+
+```{r question 3, fig.dim = c(8, 6)}
+# visualize the relationship between bill length and bill depth
+peng_clean %>%
+  ggplot(aes(x = bill_length_mm,       
+           y = body_mass_g,         
+           col = species)) +        
+  geom_point(size = 2) + 
+  geom_smooth(method = "lm") +        
+  labs(title = "Relationship between bill length and body mass by species",
+       subtitle = "The relationships are positive for all species",
+       x = "Bill length (mm)",
+       y = "Body mass (g)",
+       col = "Species") + 
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+#### Findings
+
+From the histograms, we can see that the distributions of all biological factors are bimodal. Now focusing on the distribution of bill length, it spreads from 35mm to 55mm. Males tend to have longer bill length than females and Adelie has the shortest bill length on average. Moreover, the mean bill length is significantly greater than 40 in 2007. Lastly, I found that the bill length and body mass are positively correlated, which is also shown by the scattterplot.
+
+#### Summary of functions used
+
+Functions used from `tidyr`: head(), select(), group_by(), summarize(), arrange(), filter()
+
+Functions used from `ggplot2`: geom_histogram(), geom_density(), geom_point(), geom_smooth(), facet_wrap()
+
+Functions used from `purr`: map_dbl(), map()
